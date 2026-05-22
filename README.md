@@ -154,9 +154,10 @@ want snappier reaction at the cost of more flashes.
 | `__init__.py` | Wiring | ✅ |
 
 The pure modules are unit-tested with **zero Home Assistant dependency** via
-an `importlib` shim in `tests/conftest.py`. Integration tests (when added)
-will live under `tests/integration/` with their own `pytest-homeassistant-custom-component`
-setup.
+an `importlib` shim in `tests/conftest.py`. Integration tests live under
+`tests/integration/` and exercise the full registry → coordinator → bridge
+options pipeline against a real HA runtime
+(`pytest-homeassistant-custom-component`).
 
 ---
 
@@ -176,7 +177,7 @@ setup.
 
 ## Roadmap
 
-- [ ] Integration tests with `pytest-homeassistant-custom-component`
+- [x] Integration tests with `pytest-homeassistant-custom-component`
 - [ ] Optional translation of cleaned aliases (multi-language households)
 - [ ] Linked `humidity` / `temperature` sensors for climate entities
 - [ ] Custom rename rules per entity (UI editor)
@@ -192,9 +193,13 @@ setup.
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Run unit tests (no Home Assistant required)
+# Unit tests (no Home Assistant required — fast)
 pip install -r requirements_test.txt
-pytest tests/ -v
+pytest tests/ --ignore=tests/integration -v
+
+# Integration tests (pulls in Home Assistant — slower)
+pip install -r requirements_integration.txt
+pytest tests/integration/ -v
 
 # Lint
 pip install ruff

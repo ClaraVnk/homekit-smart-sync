@@ -234,7 +234,9 @@ class SmartSyncCoordinator:
 
     async def async_restore_and_teardown(self) -> None:
         if self._debouncer is not None:
-            await self._debouncer.async_shutdown()
+            # ``Debouncer.async_shutdown`` is a synchronous ``@callback`` in
+            # modern HA — do not await it.
+            self._debouncer.async_shutdown()
             self._debouncer = None
 
         snapshots = self._entry.options.get(CONF_ORIGINAL_OPTIONS_SNAPSHOT, {})

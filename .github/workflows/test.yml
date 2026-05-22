@@ -5,8 +5,8 @@ on:
   pull_request:
 
 jobs:
-  pytest:
-    name: Pytest
+  unit:
+    name: Unit (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -18,4 +18,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - run: pip install -r requirements_test.txt
-      - run: pytest tests/ -v
+      - run: pytest tests/ --ignore=tests/integration -v
+
+  integration:
+    name: Integration (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -r requirements_integration.txt
+      - run: pytest tests/integration/ -v
