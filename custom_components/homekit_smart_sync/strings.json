@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HomeKit Smart Sync",
+        "description": "Select the HomeKit bridge(s) Smart Sync should manage.\n\nNote: when entities or areas change, the bridge is reloaded after an ~8s debounce. Apple Home may briefly show accessories as \"Not Responding\" while the bridge reconnects.",
+        "data": {
+          "bridge_entry_ids": "HomeKit bridges",
+          "enable_naming": "Enable Siri Name Cleaner",
+          "enable_filter": "Enable Smart Filter for voice"
+        }
+      }
+    },
+    "abort": {
+      "no_homekit_bridges": "No HomeKit bridge is configured. Set up the HomeKit integration first.",
+      "already_configured": "HomeKit Smart Sync is already configured."
+    },
+    "error": {
+      "no_bridge_selected": "Select at least one bridge to manage."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HomeKit Smart Sync",
+        "description": "Tune which bridges are managed and which features are active. Changes trigger a debounced reload of the affected bridges.",
+        "data": {
+          "bridge_entry_ids": "HomeKit bridges",
+          "enable_naming": "Enable Siri Name Cleaner",
+          "enable_filter": "Enable Smart Filter for voice",
+          "extra_excluded_domains": "Additional domains to exclude"
+        }
+      }
+    }
+  }
+}

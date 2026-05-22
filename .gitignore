@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code
+.claude/
+.claude.json
+CLAUDE.md
+
+# Internal / dev-only docs (not for public repo)
+SHOOT_LIST.md

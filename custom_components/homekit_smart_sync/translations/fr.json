@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HomeKit Smart Sync",
+        "description": "Sélectionnez le ou les ponts HomeKit que Smart Sync doit gérer.\n\nNote : à chaque changement d'entité ou de zone, le pont est rechargé après un délai d'environ 8s. L'application Maison peut afficher brièvement \"Aucune réponse\" pendant la reconnexion du pont.",
+        "data": {
+          "bridge_entry_ids": "Ponts HomeKit",
+          "enable_naming": "Activer le nettoyage des noms pour Siri",
+          "enable_filter": "Activer le filtre vocal intelligent"
+        }
+      }
+    },
+    "abort": {
+      "no_homekit_bridges": "Aucun pont HomeKit configuré. Configurez d'abord l'intégration HomeKit.",
+      "already_configured": "HomeKit Smart Sync est déjà configuré."
+    },
+    "error": {
+      "no_bridge_selected": "Sélectionnez au moins un pont à gérer."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HomeKit Smart Sync",
+        "description": "Ajustez les ponts gérés et les fonctionnalités actives. Toute modification déclenche un rechargement différé des ponts concernés.",
+        "data": {
+          "bridge_entry_ids": "Ponts HomeKit",
+          "enable_naming": "Activer le nettoyage des noms pour Siri",
+          "enable_filter": "Activer le filtre vocal intelligent",
+          "extra_excluded_domains": "Domaines supplémentaires à exclure"
+        }
+      }
+    }
+  }
+}
