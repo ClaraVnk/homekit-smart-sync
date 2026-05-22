@@ -5,6 +5,7 @@ while a proper visual identity is being designed. Re-run any time:
 
     .venv/bin/python scripts/generate_brand_assets.py
 """
+
 from __future__ import annotations
 
 from pathlib import Path
