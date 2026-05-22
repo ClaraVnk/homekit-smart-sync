@@ -33,6 +33,32 @@
       }
     }
   },
+  "services": {
+    "set_alias": {
+      "name": "Set HomeKit alias",
+      "description": "Override the auto-cleaned alias for a specific entity. The given name is pushed to the HomeKit bridge on the next sync and used by Apple Home and Siri instead of the entity's friendly name.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "Entity whose HomeKit alias should be overridden."
+        },
+        "alias": {
+          "name": "Alias",
+          "description": "Name to show in Apple Home (1–64 characters)."
+        }
+      }
+    },
+    "clear_alias": {
+      "name": "Clear HomeKit alias",
+      "description": "Drop a previously set manual alias and let the auto-cleaner resume for this entity.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "Entity whose manual alias should be removed."
+        }
+      }
+    }
+  },
   "issues": {
     "ambiguous_link": {
       "title": "Ambiguous {sensor_class} link",

@@ -25,6 +25,14 @@ CONF_ORIGINAL_OPTIONS_SNAPSHOT: Final = "_original_options_snapshot"
 # ambiguous link cases surfaced via the Repairs flow. Honored by the coordinator
 # in subsequent syncs, taking precedence over auto-detected links.
 CONF_MANUAL_LINKS: Final = "manual_links"
+# {entity_id: alias} — user-supplied overrides that win over the auto-cleaned
+# alias produced by ``naming.clean_entity_name``. Managed through the
+# homekit_smart_sync.set_alias / clear_alias services.
+CONF_MANUAL_NAMES: Final = "manual_names"
+
+SERVICE_SET_ALIAS: Final = "set_alias"
+SERVICE_CLEAR_ALIAS: Final = "clear_alias"
+ATTR_ALIAS: Final = "alias"
 
 # Debounce window before pushing options into the HomeKit bridge.
 # Long enough to coalesce a startup burst of registry events,

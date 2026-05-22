@@ -33,6 +33,32 @@
       }
     }
   },
+  "services": {
+    "set_alias": {
+      "name": "Définir l'alias HomeKit",
+      "description": "Remplace l'alias auto-nettoyé d'une entité par un nom personnalisé. Ce nom est poussé vers le pont HomeKit à la prochaine synchronisation et utilisé par Maison et Siri.",
+      "fields": {
+        "entity_id": {
+          "name": "Entité",
+          "description": "Entité dont l'alias HomeKit doit être remplacé."
+        },
+        "alias": {
+          "name": "Alias",
+          "description": "Nom à afficher dans Maison (1 à 64 caractères)."
+        }
+      }
+    },
+    "clear_alias": {
+      "name": "Supprimer l'alias HomeKit",
+      "description": "Supprime un alias personnalisé précédemment défini ; le nettoyage automatique reprend pour cette entité.",
+      "fields": {
+        "entity_id": {
+          "name": "Entité",
+          "description": "Entité dont l'alias personnalisé doit être supprimé."
+        }
+      }
+    }
+  },
   "issues": {
     "ambiguous_link": {
       "title": "Lien {sensor_class} ambigu",

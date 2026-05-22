@@ -32,6 +32,7 @@ from .const import (
     CONF_EXTRA_EXCLUDED_DOMAINS,
     CONF_FILTER_BRIDGES,
     CONF_MANUAL_LINKS,
+    CONF_MANUAL_NAMES,
     CONF_NAMING_BRIDGES,
     CONF_ORIGINAL_OPTIONS_SNAPSHOT,
     DOMAIN,
@@ -70,6 +71,7 @@ class SmartSyncCoordinator:
         self._filter_bridges: set[str] = set()
         self._extra_excluded_domains: list[str] = []
         self._manual_links: dict[str, dict[str, str]] = {}
+        self._manual_names: dict[str, str] = {}
         self._debouncer: Debouncer | None = None
         # Issue IDs we have raised this session — used to clean up issues
         # that no longer apply (ambiguity resolved or device removed).
@@ -109,6 +111,16 @@ class SmartSyncCoordinator:
         else:
             self._manual_links = {}
 
+        raw_names = opts.get(CONF_MANUAL_NAMES, {})
+        if isinstance(raw_names, dict):
+            self._manual_names = {
+                str(eid): str(alias)
+                for eid, alias in raw_names.items()
+                if isinstance(alias, str) and alias
+            }
+        else:
+            self._manual_names = {}
+
     # ------------------------------------------------------------------ events
 
     @callback
@@ -147,8 +159,10 @@ class SmartSyncCoordinator:
         ent_reg = er.async_get(self._hass)
         dev_reg = dr.async_get(self._hass)
 
-        # entity_id → cleaned alias, computed once and re-used per bridge.
-        # Bridges that have naming disabled simply receive an empty dict.
+        # entity_id → alias, computed once and re-used per bridge. Bridges
+        # that have naming disabled simply receive an empty dict. Manual
+        # overrides from the set_alias service take precedence over the
+        # automatic Siri Name Cleaner output.
         name_overrides: dict[str, str] = {}
         if self._naming_bridges:
             for entry in ent_reg.entities.values():
@@ -161,6 +175,10 @@ class SmartSyncCoordinator:
                 cleaned = clean_entity_name(friendly, areas.get(area_id))
                 if cleaned:
                     name_overrides[entry.entity_id] = cleaned
+            # Manual aliases override the auto-cleaned ones and apply even
+            # to entities without an area (which the auto-cleaner skips).
+            for entity_id, alias in self._manual_names.items():
+                name_overrides[entity_id] = alias
 
         # Filter + linked-sensor outputs are also bridge-agnostic; per-bridge
         # gating happens at compose time below. We still always recompute
@@ -336,6 +354,25 @@ class SmartSyncCoordinator:
         self._hass.config_entries.async_update_entry(
             self._entry,
             options={**self._entry.options, CONF_MANUAL_LINKS: existing},
+        )
+
+    def record_manual_name(self, entity_id: str, alias: str) -> None:
+        """Persist a user-supplied alias from the ``set_alias`` service."""
+        existing = dict(self._entry.options.get(CONF_MANUAL_NAMES, {}))
+        existing[entity_id] = alias
+        self._hass.config_entries.async_update_entry(
+            self._entry,
+            options={**self._entry.options, CONF_MANUAL_NAMES: existing},
+        )
+
+    def clear_manual_name(self, entity_id: str) -> None:
+        """Drop a manual alias so the auto-cleaner resumes for this entity."""
+        existing = dict(self._entry.options.get(CONF_MANUAL_NAMES, {}))
+        if existing.pop(entity_id, None) is None:
+            return
+        self._hass.config_entries.async_update_entry(
+            self._entry,
+            options={**self._entry.options, CONF_MANUAL_NAMES: existing},
         )
 
     # ----------------------------------------------------------------- restore

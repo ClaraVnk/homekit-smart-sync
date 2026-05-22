@@ -18,6 +18,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN
 from .coordinator import SmartSyncCoordinator
+from .services import async_register_services, async_unregister_services
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +51,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # are settled and we don't reload the bridge mid-boot.
     coordinator.schedule_sync(reason="initial")
 
+    # Services are domain-scoped (not per-entry). Since the integration is
+    # a singleton, registering here and de-registering when the entry
+    # unloads is correct.
+    async_register_services(hass)
+
     return True
 
 
@@ -58,6 +64,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator: SmartSyncCoordinator | None = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if coordinator is not None:
         await coordinator.async_restore_and_teardown()
+
+    if not hass.data.get(DOMAIN):
+        async_unregister_services(hass)
     return True
 
 
