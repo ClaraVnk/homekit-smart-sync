@@ -123,57 +123,88 @@ def draw_sync_glyph(
     draw.polygon([tip, base_outer, base_inner], fill=color)
 
 
-def make_icon() -> Image.Image:
-    size = 256
-    img = gradient_rounded_square(size, BG_TOP, BG_BOTTOM, radius=48)
+def make_icon(size: int = 256) -> Image.Image:
+    """Render the icon at the requested square pixel size.
+
+    Geometry is expressed relative to the canonical 256-pixel design and
+    scaled on the fly, so 512x512 is rendered natively (sharp edges)
+    rather than upscaled from 256 (blurred edges).
+    """
+    s = size / 256
+
+    def px(n: float) -> int:
+        return round(n * s)
+
+    img = gradient_rounded_square(size, BG_TOP, BG_BOTTOM, radius=px(48))
     draw = ImageDraw.Draw(img)
 
     # Universal sync arrow above the roof — the integration's whole job
     # is "keep things in sync", so the symbol earns its space.
-    draw_sync_glyph(draw, cx=128, cy=48, radius=22, color=FG, stroke=6)
+    draw_sync_glyph(
+        draw,
+        cx=px(128),
+        cy=px(48),
+        radius=px(22),
+        color=FG,
+        stroke=max(1, px(6)),
+    )
 
-    # House body — rounded bottom corners only would be ideal but PIL only
-    # offers all-corners rounded rectangles. Slight rounding everywhere
-    # keeps the silhouette friendly at small sizes.
-    draw.rounded_rectangle((76, 130, 180, 212), radius=10, fill=FG)
+    # House body — slight rounding everywhere keeps the silhouette friendly
+    # at small sizes (PIL only offers all-corners rounded rectangles).
+    draw.rounded_rectangle(
+        (px(76), px(130), px(180), px(212)),
+        radius=px(10),
+        fill=FG,
+    )
 
-    # Roof — overlaps the body top by ~4 px so the seam is invisible.
-    draw.polygon([(54, 134), (128, 76), (202, 134)], fill=FG)
+    # Roof — overlaps the body top so the seam is invisible.
+    draw.polygon([(px(54), px(134)), (px(128), px(76)), (px(202), px(134))], fill=FG)
 
     # A single round window adds character and reads as "smart sensor"
     # without needing decorative detail that gets lost at small sizes.
-    draw.ellipse((117, 156, 139, 178), fill=WINDOW)
+    draw.ellipse((px(117), px(156), px(139), px(178)), fill=WINDOW)
 
     return img
 
 
-def make_logo(icon_full: Image.Image) -> Image.Image:
-    width, height = 512, 256
+def make_logo(icon_full: Image.Image, scale: int = 1) -> Image.Image:
+    """Render the wordmark logo at 1x (512x256) or 2x (1024x512)."""
+    width, height = 512 * scale, 256 * scale
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
 
-    icon_size = 196
+    icon_size = 196 * scale
     icon = icon_full.resize((icon_size, icon_size), Image.LANCZOS)
-    img.paste(icon, (20, (height - icon_size) // 2), icon)
+    img.paste(icon, (20 * scale, (height - icon_size) // 2), icon)
 
     draw = ImageDraw.Draw(img)
-    font_lg = load_font(40, bold=True)
-    font_sm = load_font(24)
+    font_lg = load_font(40 * scale, bold=True)
+    font_sm = load_font(24 * scale)
 
-    text_x = 232
+    text_x = 232 * scale
     # Optical centering: HomeKit baseline + Smart Sync below, vertically
     # balanced around the icon's middle.
-    draw.text((text_x, 86), "HomeKit", fill=WORDMARK, font=font_lg)
-    draw.text((text_x, 138), "Smart Sync", fill=WORDMARK_SUB, font=font_sm)
+    draw.text((text_x, 86 * scale), "HomeKit", fill=WORDMARK, font=font_lg)
+    draw.text((text_x, 138 * scale), "Smart Sync", fill=WORDMARK_SUB, font=font_sm)
     return img
 
 
 def main() -> None:
-    icon = make_icon()
-    logo = make_logo(icon)
-    icon.save(OUT_DIR / "icon.png")
-    logo.save(OUT_DIR / "logo.png")
-    print(f"wrote {OUT_DIR / 'icon.png'} ({icon.size})")
-    print(f"wrote {OUT_DIR / 'logo.png'} ({logo.size})")
+    # 1x sizes — what HACS picks up from the local brand/ directory.
+    icon_1x = make_icon(size=256)
+    logo_1x = make_logo(icon_1x, scale=1)
+    icon_1x.save(OUT_DIR / "icon.png")
+    logo_1x.save(OUT_DIR / "logo.png")
+    print(f"wrote {OUT_DIR / 'icon.png'} ({icon_1x.size})")
+    print(f"wrote {OUT_DIR / 'logo.png'} ({logo_1x.size})")
+
+    # 2x sizes — required by the home-assistant/brands repo for retina.
+    # Rendered natively at the larger size, not upscaled.
+    icon_2x = make_icon(size=512)
+    logo_2x = make_logo(icon_2x, scale=2)
+    icon_2x.save(OUT_DIR / "icon@2x.png")
+    logo_2x.save(OUT_DIR / "logo@2x.png")
+    print(f"wrote {OUT_DIR / 'icon@2x.png'} ({icon_2x.size})")
+    print(f"wrote {OUT_DIR / 'logo@2x.png'} ({logo_2x.size})")
 
 
 if __name__ == "__main__":
