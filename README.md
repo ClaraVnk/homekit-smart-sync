@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="custom_components/homekit_smart_sync/brand/logo.png" alt="HomeKit Smart Sync" width="420">
+</p>
+
 <h1 align="center">HomeKit Smart Sync</h1>
 
 <p align="center">
