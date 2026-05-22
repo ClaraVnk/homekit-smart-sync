@@ -15,9 +15,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-OUT_DIR = (
-    Path(__file__).resolve().parents[1] / "custom_components" / "homekit_smart_sync" / "brand"
-)
+OUT_DIR = Path(__file__).resolve().parents[1] / "custom_components" / "homekit_smart_sync" / "brand"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Vertical-gradient endpoints — light HA blue at the top, deeper at the bottom.
