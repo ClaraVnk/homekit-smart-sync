@@ -95,8 +95,28 @@ _LINK_RULES: tuple[_LinkRule, ...] = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class AmbiguousLink:
+    """A link case the auto-resolver refused to commit to.
+
+    Currently only the "one sensor, many host candidates" shape is reported —
+    that's by far the most common in the wild (a battery sensor on a device
+    that exposes both a lock and a switch entity, for example). The reverse
+    case ("many sensors, one host") is less common and left to a future
+    Repairs flow extension.
+    """
+
+    device_id: str
+    config_key: str  # e.g. "linked_battery_sensor"
+    sensor_class: str  # e.g. "battery" — used as a stable issue-id slug
+    sensor_entity_id: str
+    host_candidates: tuple[str, ...]
+
+
 def compute_linked_sensors(
     entities: Iterable[EntityFacts],
+    *,
+    manual_links: dict[str, dict[str, str]] | None = None,
 ) -> dict[str, dict[str, str]]:
     """Return host_entity_id → {linked_*_sensor: sensor_entity_id} mappings.
 
@@ -106,8 +126,14 @@ def compute_linked_sensors(
     before: a link is only added when the device has exactly one sensor
     of the relevant class and exactly one eligible host — under-link
     rather than mis-link.
+
+    ``manual_links`` (``{device_id: {config_key: host_entity_id}}``) lets
+    the caller resolve previously ambiguous cases — typically populated
+    from the Repairs flow. Manual entries take precedence over auto
+    detection and are honored even when the auto rule would have skipped.
     """
     entities = list(entities)
+    manual_links = manual_links or {}
     result: dict[str, dict[str, str]] = {}
 
     for rule in _LINK_RULES:
@@ -124,10 +150,62 @@ def compute_linked_sensors(
 
         for device_id, sensors in by_device_sensors.items():
             hosts = by_device_hosts.get(device_id, [])
-            if len(sensors) == 1 and len(hosts) == 1:
+            manual_host = manual_links.get(device_id, {}).get(rule.config_key)
+
+            if manual_host and manual_host in hosts and len(sensors) == 1:
+                result.setdefault(manual_host, {})[rule.config_key] = sensors[0]
+            elif len(sensors) == 1 and len(hosts) == 1:
                 result.setdefault(hosts[0], {})[rule.config_key] = sensors[0]
 
     return result
+
+
+def compute_link_ambiguities(
+    entities: Iterable[EntityFacts],
+    *,
+    manual_links: dict[str, dict[str, str]] | None = None,
+) -> list[AmbiguousLink]:
+    """Detect (device, rule) combos where exactly one sensor exists but
+    multiple hosts qualify — the case a Repairs flow should ask about.
+
+    Already-resolved ambiguities (the user picked a host via the flow and
+    that host still exists) are not reported again. If the manual choice
+    references a host that has since disappeared, the ambiguity resurfaces.
+    """
+    entities = list(entities)
+    manual_links = manual_links or {}
+    ambiguities: list[AmbiguousLink] = []
+
+    for rule in _LINK_RULES:
+        by_device_sensors: dict[str, list[str]] = {}
+        by_device_hosts: dict[str, list[str]] = {}
+
+        for ent in entities:
+            if ent.disabled or ent.hidden or not ent.device_id:
+                continue
+            if ent.domain == "sensor" and ent.device_class == rule.sensor_device_class:
+                by_device_sensors.setdefault(ent.device_id, []).append(ent.entity_id)
+            elif ent.domain in rule.host_domains:
+                by_device_hosts.setdefault(ent.device_id, []).append(ent.entity_id)
+
+        for device_id, sensors in by_device_sensors.items():
+            hosts = by_device_hosts.get(device_id, [])
+            if len(sensors) != 1 or len(hosts) < 2:
+                continue
+            manual_host = manual_links.get(device_id, {}).get(rule.config_key)
+            if manual_host and manual_host in hosts:
+                continue  # user already resolved this case
+            ambiguities.append(
+                AmbiguousLink(
+                    device_id=device_id,
+                    config_key=rule.config_key,
+                    sensor_class=rule.sensor_device_class,
+                    sensor_entity_id=sensors[0],
+                    host_candidates=tuple(sorted(hosts)),
+                )
+            )
+
+    return ambiguities
 
 
 def _should_expose(ent: EntityFacts, extra_excluded_domains: set[str]) -> bool:

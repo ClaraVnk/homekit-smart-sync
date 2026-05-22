@@ -22,6 +22,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.debounce import Debouncer
 
 from .const import (
@@ -29,11 +30,18 @@ from .const import (
     CONF_ENABLE_FILTER,
     CONF_ENABLE_NAMING,
     CONF_EXTRA_EXCLUDED_DOMAINS,
+    CONF_MANUAL_LINKS,
     CONF_ORIGINAL_OPTIONS_SNAPSHOT,
+    DOMAIN,
     HOMEKIT_DOMAIN,
     SYNC_DEBOUNCE_SECONDS,
 )
-from .filtering import compute_filter, compute_linked_sensors
+from .filtering import (
+    AmbiguousLink,
+    compute_filter,
+    compute_link_ambiguities,
+    compute_linked_sensors,
+)
 from .naming import clean_entity_name
 from .registry_resolver import (
     area_name_map,
@@ -57,7 +65,11 @@ class SmartSyncCoordinator:
         self._enable_naming: bool = True
         self._enable_filter: bool = True
         self._extra_excluded_domains: list[str] = []
+        self._manual_links: dict[str, dict[str, str]] = {}
         self._debouncer: Debouncer | None = None
+        # Issue IDs we have raised this session — used to clean up issues
+        # that no longer apply (ambiguity resolved or device removed).
+        self._active_issue_ids: set[str] = set()
 
     async def async_initial_setup(self) -> None:
         self.refresh_options_from_entry()
@@ -75,6 +87,16 @@ class SmartSyncCoordinator:
         self._enable_naming = bool(opts.get(CONF_ENABLE_NAMING, True))
         self._enable_filter = bool(opts.get(CONF_ENABLE_FILTER, True))
         self._extra_excluded_domains = list(opts.get(CONF_EXTRA_EXCLUDED_DOMAINS, []))
+        raw_manual = opts.get(CONF_MANUAL_LINKS, {})
+        # Be defensive — storage could be malformed if hand-edited.
+        if isinstance(raw_manual, dict):
+            self._manual_links = {
+                str(dev_id): {str(k): str(v) for k, v in mapping.items()}
+                for dev_id, mapping in raw_manual.items()
+                if isinstance(mapping, dict)
+            }
+        else:
+            self._manual_links = {}
 
     # ------------------------------------------------------------------ events
 
@@ -129,10 +151,13 @@ class SmartSyncCoordinator:
         # filter + linked sensors (filter is the user's main exposure control)
         if self._enable_filter:
             filter_dict = compute_filter(facts, extra_excluded_domains=self._extra_excluded_domains)
-            linked = compute_linked_sensors(facts)
+            linked = compute_linked_sensors(facts, manual_links=self._manual_links)
+            ambiguities = compute_link_ambiguities(facts, manual_links=self._manual_links)
+            self._reconcile_repair_issues(ambiguities)
         else:
             filter_dict = None
             linked = {}
+            self._reconcile_repair_issues([])
 
         # Persist snapshots before mutating anything.
         snapshots = dict(self._entry.options.get(CONF_ORIGINAL_OPTIONS_SNAPSHOT, {}))
@@ -230,6 +255,63 @@ class SmartSyncCoordinator:
 
         return new_options
 
+    # ------------------------------------------------------------ repair flow
+
+    @staticmethod
+    def issue_id_for(ambig: AmbiguousLink) -> str:
+        """Deterministic ID so the same ambiguity does not raise twice."""
+        return f"ambiguous_link::{ambig.sensor_class}::{ambig.device_id}"
+
+    def _reconcile_repair_issues(self, ambiguities: list[AmbiguousLink]) -> None:
+        """Create issues for newly ambiguous cases, delete stale ones."""
+        desired_ids = {self.issue_id_for(a) for a in ambiguities}
+
+        for ambig in ambiguities:
+            issue_id = self.issue_id_for(ambig)
+            ir.async_create_issue(
+                self._hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=True,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="ambiguous_link",
+                translation_placeholders={
+                    "sensor_class": ambig.sensor_class,
+                    "sensor": ambig.sensor_entity_id,
+                    "candidates": ", ".join(ambig.host_candidates),
+                },
+                data={
+                    "device_id": ambig.device_id,
+                    "config_key": ambig.config_key,
+                    "sensor_entity_id": ambig.sensor_entity_id,
+                    "host_candidates": list(ambig.host_candidates),
+                    "entry_id": self._entry.entry_id,
+                },
+            )
+            self._active_issue_ids.add(issue_id)
+
+        # Anything previously raised that no longer applies → delete.
+        for stale_id in self._active_issue_ids - desired_ids:
+            ir.async_delete_issue(self._hass, DOMAIN, stale_id)
+        self._active_issue_ids &= desired_ids
+
+    def record_manual_link(self, device_id: str, config_key: str, host_entity_id: str) -> None:
+        """Persist a user's repair-flow choice into our entry options.
+
+        Called from ``repairs.py`` after the user picks a host. Triggering a
+        re-sync is the listener's responsibility (the options-update event
+        fires automatically and is handled by ``_async_options_updated`` in
+        :mod:`__init__`).
+        """
+        existing = dict(self._entry.options.get(CONF_MANUAL_LINKS, {}))
+        per_device = dict(existing.get(device_id, {}))
+        per_device[config_key] = host_entity_id
+        existing[device_id] = per_device
+        self._hass.config_entries.async_update_entry(
+            self._entry,
+            options={**self._entry.options, CONF_MANUAL_LINKS: existing},
+        )
+
     # ----------------------------------------------------------------- restore
 
     async def async_restore_and_teardown(self) -> None:
@@ -238,6 +320,12 @@ class SmartSyncCoordinator:
             # modern HA — do not await it.
             self._debouncer.async_shutdown()
             self._debouncer = None
+
+        # Clear any repair issues we raised — they would otherwise linger in
+        # the user's Repairs dashboard after the integration is uninstalled.
+        for issue_id in list(self._active_issue_ids):
+            ir.async_delete_issue(self._hass, DOMAIN, issue_id)
+        self._active_issue_ids.clear()
 
         snapshots = self._entry.options.get(CONF_ORIGINAL_OPTIONS_SNAPSHOT, {})
         if not isinstance(snapshots, dict):

@@ -32,5 +32,22 @@
         }
       }
     }
+  },
+  "issues": {
+    "ambiguous_link": {
+      "title": "Ambiguous {sensor_class} link",
+      "description": "The sensor {sensor} could belong to several voice-actionable entities on the same device ({candidates}). Pick the one that should own it in Apple Home.",
+      "fix_flow": {
+        "step": {
+          "pick_host": {
+            "title": "Pick the host entity",
+            "description": "Apple Home will attach the sensor {sensor} (via {config_key}) to the entity you choose below.",
+            "data": {
+              "host": "Host entity"
+            }
+          }
+        }
+      }
+    }
   }
 }

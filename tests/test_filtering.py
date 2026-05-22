@@ -354,3 +354,69 @@ class TestLinkedClimateSensors:
             ),
         ]
         assert filtering.compute_linked_sensors(facts) == {}
+
+
+class TestLinkAmbiguities:
+    def _ambiguous_battery_setup(self, filtering):
+        return [
+            _make_facts(filtering, entity_id="lock.front", domain="lock", device_id="d1"),
+            _make_facts(filtering, entity_id="switch.front", domain="switch", device_id="d1"),
+            _make_facts(
+                filtering,
+                entity_id="sensor.front_battery",
+                domain="sensor",
+                device_id="d1",
+                device_class="battery",
+            ),
+        ]
+
+    def test_reports_battery_ambiguity(self, filtering):
+        facts = self._ambiguous_battery_setup(filtering)
+        ambiguities = filtering.compute_link_ambiguities(facts)
+        assert len(ambiguities) == 1
+        ambig = ambiguities[0]
+        assert ambig.device_id == "d1"
+        assert ambig.config_key == "linked_battery_sensor"
+        assert ambig.sensor_class == "battery"
+        assert ambig.sensor_entity_id == "sensor.front_battery"
+        # Sorted to keep issue payloads deterministic across runs.
+        assert ambig.host_candidates == ("lock.front", "switch.front")
+
+    def test_unambiguous_setup_has_no_ambiguities(self, filtering):
+        facts = [
+            _make_facts(filtering, entity_id="lock.front", domain="lock", device_id="d1"),
+            _make_facts(
+                filtering,
+                entity_id="sensor.front_battery",
+                domain="sensor",
+                device_id="d1",
+                device_class="battery",
+            ),
+        ]
+        assert filtering.compute_link_ambiguities(facts) == []
+
+    def test_manual_resolution_clears_ambiguity(self, filtering):
+        facts = self._ambiguous_battery_setup(filtering)
+        manual = {"d1": {"linked_battery_sensor": "lock.front"}}
+        assert filtering.compute_link_ambiguities(facts, manual_links=manual) == []
+
+    def test_manual_resolution_referring_to_missing_host_resurfaces(self, filtering):
+        # The host the user previously picked has been disabled/removed →
+        # ambiguity should re-appear so the user can pick another.
+        facts = self._ambiguous_battery_setup(filtering)
+        manual = {"d1": {"linked_battery_sensor": "lock.ghost"}}
+        ambiguities = filtering.compute_link_ambiguities(facts, manual_links=manual)
+        assert len(ambiguities) == 1
+
+    def test_manual_link_applied_in_compute_linked_sensors(self, filtering):
+        facts = self._ambiguous_battery_setup(filtering)
+        manual = {"d1": {"linked_battery_sensor": "switch.front"}}
+        linked = filtering.compute_linked_sensors(facts, manual_links=manual)
+        assert linked == {"switch.front": {"linked_battery_sensor": "sensor.front_battery"}}
+
+    def test_manual_link_to_missing_host_is_ignored(self, filtering):
+        facts = self._ambiguous_battery_setup(filtering)
+        manual = {"d1": {"linked_battery_sensor": "lock.ghost"}}
+        # Auto-resolver still skips (because ambiguity) and manual is ignored
+        # (because ghost isn't a real candidate) — safer than misattributing.
+        assert filtering.compute_linked_sensors(facts, manual_links=manual) == {}

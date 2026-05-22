@@ -13,6 +13,10 @@ CONF_ENABLE_NAMING: Final = "enable_naming"
 CONF_ENABLE_FILTER: Final = "enable_filter"
 CONF_EXTRA_EXCLUDED_DOMAINS: Final = "extra_excluded_domains"
 CONF_ORIGINAL_OPTIONS_SNAPSHOT: Final = "_original_options_snapshot"
+# {device_id: {link_config_key: host_entity_id}} — user choices that resolve
+# ambiguous link cases surfaced via the Repairs flow. Honored by the coordinator
+# in subsequent syncs, taking precedence over auto-detected links.
+CONF_MANUAL_LINKS: Final = "manual_links"
 
 # Debounce window before pushing options into the HomeKit bridge.
 # Long enough to coalesce a startup burst of registry events,

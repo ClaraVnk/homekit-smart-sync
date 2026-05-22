@@ -32,5 +32,22 @@
         }
       }
     }
+  },
+  "issues": {
+    "ambiguous_link": {
+      "title": "Lien {sensor_class} ambigu",
+      "description": "Le capteur {sensor} pourrait appartenir à plusieurs entités contrôlables à la voix sur le même appareil ({candidates}). Choisissez celle qui doit le posséder dans Maison.",
+      "fix_flow": {
+        "step": {
+          "pick_host": {
+            "title": "Choisir l'entité hôte",
+            "description": "Maison attachera le capteur {sensor} (via {config_key}) à l'entité que vous choisirez ci-dessous.",
+            "data": {
+              "host": "Entité hôte"
+            }
+          }
+        }
+      }
+    }
   }
 }
