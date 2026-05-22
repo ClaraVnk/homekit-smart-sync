@@ -30,7 +30,9 @@ from .const import (
     CONF_ENABLE_FILTER,
     CONF_ENABLE_NAMING,
     CONF_EXTRA_EXCLUDED_DOMAINS,
+    CONF_FILTER_BRIDGES,
     CONF_MANUAL_LINKS,
+    CONF_NAMING_BRIDGES,
     CONF_ORIGINAL_OPTIONS_SNAPSHOT,
     DOMAIN,
     HOMEKIT_DOMAIN,
@@ -62,8 +64,10 @@ class SmartSyncCoordinator:
         self._hass = hass
         self._entry = entry
         self._bridge_entry_ids: list[str] = []
-        self._enable_naming: bool = True
-        self._enable_filter: bool = True
+        # Per-bridge feature sets (subsets of bridge_entry_ids). The
+        # legacy bool toggles are migrated into these on refresh.
+        self._naming_bridges: set[str] = set()
+        self._filter_bridges: set[str] = set()
         self._extra_excluded_domains: list[str] = []
         self._manual_links: dict[str, dict[str, str]] = {}
         self._debouncer: Debouncer | None = None
@@ -84,9 +88,16 @@ class SmartSyncCoordinator:
     def refresh_options_from_entry(self) -> None:
         opts = self._entry.options
         self._bridge_entry_ids = list(opts.get(CONF_BRIDGE_ENTRY_IDS, []))
-        self._enable_naming = bool(opts.get(CONF_ENABLE_NAMING, True))
-        self._enable_filter = bool(opts.get(CONF_ENABLE_FILTER, True))
         self._extra_excluded_domains = list(opts.get(CONF_EXTRA_EXCLUDED_DOMAINS, []))
+
+        all_bridges = set(self._bridge_entry_ids)
+        self._naming_bridges = _resolve_feature_bridges(
+            opts, CONF_NAMING_BRIDGES, CONF_ENABLE_NAMING, all_bridges
+        )
+        self._filter_bridges = _resolve_feature_bridges(
+            opts, CONF_FILTER_BRIDGES, CONF_ENABLE_FILTER, all_bridges
+        )
+
         raw_manual = opts.get(CONF_MANUAL_LINKS, {})
         # Be defensive — storage could be malformed if hand-edited.
         if isinstance(raw_manual, dict):
@@ -126,7 +137,9 @@ class SmartSyncCoordinator:
     async def _async_perform_sync(self) -> None:
         if not self._bridge_entry_ids:
             return
-        if not (self._enable_naming or self._enable_filter):
+        # If neither feature is enabled on any bridge there is nothing to do.
+        if not (self._naming_bridges or self._filter_bridges):
+            self._reconcile_repair_issues([])
             return
 
         facts = collect_entity_facts(self._hass)
@@ -134,9 +147,10 @@ class SmartSyncCoordinator:
         ent_reg = er.async_get(self._hass)
         dev_reg = dr.async_get(self._hass)
 
-        # entity_id → cleaned alias (only entries where we actually rename).
+        # entity_id → cleaned alias, computed once and re-used per bridge.
+        # Bridges that have naming disabled simply receive an empty dict.
         name_overrides: dict[str, str] = {}
-        if self._enable_naming:
+        if self._naming_bridges:
             for entry in ent_reg.entities.values():
                 if entry.disabled_by or entry.hidden_by:
                     continue
@@ -148,8 +162,11 @@ class SmartSyncCoordinator:
                 if cleaned:
                     name_overrides[entry.entity_id] = cleaned
 
-        # filter + linked sensors (filter is the user's main exposure control)
-        if self._enable_filter:
+        # Filter + linked-sensor outputs are also bridge-agnostic; per-bridge
+        # gating happens at compose time below. We still always recompute
+        # ambiguities so the Repairs flow surfaces them whenever filter is
+        # enabled on at least one bridge.
+        if self._filter_bridges:
             filter_dict = compute_filter(facts, extra_excluded_domains=self._extra_excluded_domains)
             linked = compute_linked_sensors(facts, manual_links=self._manual_links)
             ambiguities = compute_link_ambiguities(facts, manual_links=self._manual_links)
@@ -177,11 +194,20 @@ class SmartSyncCoordinator:
                 snapshots_changed = True
 
             base = snapshots[bridge_entry_id]
+            # Per-bridge gating: only push what is enabled for THIS bridge.
+            bridge_names = name_overrides if bridge_entry_id in self._naming_bridges else {}
+            if bridge_entry_id in self._filter_bridges:
+                bridge_linked = linked
+                bridge_filter = filter_dict
+            else:
+                bridge_linked = {}
+                bridge_filter = None
+
             new_options = self._compose_options(
                 base=base,
-                name_overrides=name_overrides,
-                linked_sensors=linked,
-                filter_dict=filter_dict,
+                name_overrides=bridge_names,
+                linked_sensors=bridge_linked,
+                filter_dict=bridge_filter,
             )
 
             if _options_equal(bridge.options, new_options):
@@ -191,8 +217,8 @@ class SmartSyncCoordinator:
                 "Pushing updated options to HomeKit bridge %s "
                 "(%d name overrides, %d linked-sensor hosts)",
                 bridge.title or bridge_entry_id,
-                len(name_overrides),
-                len(linked),
+                len(bridge_names),
+                len(bridge_linked),
             )
             self._hass.config_entries.async_update_entry(bridge, options=new_options)
             await self._hass.config_entries.async_reload(bridge_entry_id)
@@ -350,6 +376,27 @@ class SmartSyncCoordinator:
                 await self._hass.config_entries.async_reload(bridge_entry_id)
             except Exception:
                 _LOGGER.exception("Restore: failed to reload HomeKit bridge %s", bridge_entry_id)
+
+
+def _resolve_feature_bridges(
+    opts: dict[str, Any],
+    new_key: str,
+    legacy_bool_key: str,
+    all_bridges: set[str],
+) -> set[str]:
+    """Pick the effective bridge set for a feature.
+
+    Reads the per-bridge list at ``new_key`` if present. Otherwise falls
+    back to the legacy boolean — ``True`` means all bridges, ``False``
+    means none. Unknown bridges (in storage but no longer selected) are
+    silently dropped to keep state consistent after the user trims their
+    bridge selection.
+    """
+    raw = opts.get(new_key)
+    if isinstance(raw, list):
+        return {str(b) for b in raw if b in all_bridges}
+    legacy = bool(opts.get(legacy_bool_key, True))
+    return set(all_bridges) if legacy else set()
 
 
 def _options_equal(a: dict, b: dict) -> bool:

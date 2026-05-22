@@ -17,8 +17,11 @@ from custom_components.homekit_smart_sync.const import (
     CONF_BRIDGE_ENTRY_IDS,
     CONF_ENABLE_FILTER,
     CONF_ENABLE_NAMING,
+    CONF_FILTER_BRIDGES,
+    CONF_NAMING_BRIDGES,
     CONF_ORIGINAL_OPTIONS_SNAPSHOT,
     DOMAIN,
+    HOMEKIT_DOMAIN,
 )
 
 
@@ -131,6 +134,100 @@ async def test_sync_links_battery_sensor(
     battery_id = populated_registries["entities"]["battery"]
 
     assert entity_config[lock_id]["linked_battery_sensor"] == battery_id
+
+
+async def test_per_bridge_naming_toggle(
+    hass: HomeAssistant,
+    populated_registries: dict,
+) -> None:
+    """Two bridges, naming enabled only on one — only that bridge gets aliases.
+
+    Filtering is left enabled on both so we can assert per-feature granularity
+    independent of the bridge-selection toggle.
+    """
+    bridge_a = MockConfigEntry(
+        domain=HOMEKIT_DOMAIN,
+        data={"mode": "bridge", "port": 21063},
+        title="Bridge A",
+        options={},
+    )
+    bridge_b = MockConfigEntry(
+        domain=HOMEKIT_DOMAIN,
+        data={"mode": "bridge", "port": 21064},
+        title="Bridge B",
+        options={},
+    )
+    bridge_a.add_to_hass(hass)
+    bridge_b.add_to_hass(hass)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=DOMAIN,
+        title="HomeKit Smart Sync",
+        options={
+            CONF_BRIDGE_ENTRY_IDS: [bridge_a.entry_id, bridge_b.entry_id],
+            CONF_NAMING_BRIDGES: [bridge_a.entry_id],  # only A
+            CONF_FILTER_BRIDGES: [bridge_a.entry_id, bridge_b.entry_id],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch.object(hass.config_entries, "async_reload", new=AsyncMock(return_value=True)):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    with patch.object(hass.config_entries, "async_reload", new=AsyncMock(return_value=True)):
+        await coordinator._async_perform_sync()
+        await hass.async_block_till_done()
+
+    ceiling_id = populated_registries["entities"]["ceiling"]
+    a = hass.config_entries.async_get_entry(bridge_a.entry_id)
+    b = hass.config_entries.async_get_entry(bridge_b.entry_id)
+
+    # Bridge A got the alias…
+    assert a.options.get("entity_config", {}).get(ceiling_id, {}).get("name") == "Ceiling Light"
+    # …Bridge B did not.
+    assert "name" not in b.options.get("entity_config", {}).get(ceiling_id, {})
+    # But both got the filter (filter_bridges contains both).
+    assert "filter" in a.options
+    assert "filter" in b.options
+
+
+async def test_legacy_global_toggles_migrate(
+    hass: HomeAssistant,
+    homekit_bridge: MockConfigEntry,
+    populated_registries: dict,
+) -> None:
+    """An entry stored under the legacy enable_naming/enable_filter bools
+    should still produce the same effective per-bridge behavior."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=DOMAIN,
+        title="HomeKit Smart Sync",
+        options={
+            CONF_BRIDGE_ENTRY_IDS: [homekit_bridge.entry_id],
+            CONF_ENABLE_NAMING: False,  # legacy "off"
+            CONF_ENABLE_FILTER: True,  # legacy "on"
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch.object(hass.config_entries, "async_reload", new=AsyncMock(return_value=True)):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    with patch.object(hass.config_entries, "async_reload", new=AsyncMock(return_value=True)):
+        await coordinator._async_perform_sync()
+        await hass.async_block_till_done()
+
+    bridge = hass.config_entries.async_get_entry(homekit_bridge.entry_id)
+    # Naming disabled → no name overrides anywhere in entity_config.
+    for cfg in bridge.options.get("entity_config", {}).values():
+        assert "name" not in cfg
+    # Filter enabled → the filter dict is present.
+    assert "filter" in bridge.options
 
 
 async def test_sync_links_humidity_and_temperature_to_climate(

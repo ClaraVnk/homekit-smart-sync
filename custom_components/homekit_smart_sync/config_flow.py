@@ -19,6 +19,8 @@ from .const import (
     CONF_ENABLE_FILTER,
     CONF_ENABLE_NAMING,
     CONF_EXTRA_EXCLUDED_DOMAINS,
+    CONF_FILTER_BRIDGES,
+    CONF_NAMING_BRIDGES,
     DOMAIN,
     HOMEKIT_DOMAIN,
 )
@@ -111,34 +113,69 @@ class HomeKitSmartSyncOptionsFlow(OptionsFlow):
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
+            # Validate per-bridge subsets against the selected bridges so the
+            # coordinator never has to defend against drift between the keys.
+            selected_bridges = set(user_input.get(CONF_BRIDGE_ENTRY_IDS, []))
+            user_input[CONF_NAMING_BRIDGES] = [
+                b for b in user_input.get(CONF_NAMING_BRIDGES, []) if b in selected_bridges
+            ]
+            user_input[CONF_FILTER_BRIDGES] = [
+                b for b in user_input.get(CONF_FILTER_BRIDGES, []) if b in selected_bridges
+            ]
             return self.async_create_entry(title="", data=user_input)
 
         current = self._entry.options
         bridges = _available_homekit_bridges(self.hass)
+        bridge_options = [
+            selector.SelectOptionDict(value=eid, label=label) for eid, label in bridges.items()
+        ]
+
+        # Defaults for per-bridge feature lists: prefer stored value, fall
+        # back to the legacy bool (True → all bridges, False → none).
+        currently_selected = list(current.get(CONF_BRIDGE_ENTRY_IDS, []))
+        legacy_naming_on = bool(current.get(CONF_ENABLE_NAMING, True))
+        legacy_filter_on = bool(current.get(CONF_ENABLE_FILTER, True))
+        naming_default = current.get(
+            CONF_NAMING_BRIDGES,
+            currently_selected if legacy_naming_on else [],
+        )
+        filter_default = current.get(
+            CONF_FILTER_BRIDGES,
+            currently_selected if legacy_filter_on else [],
+        )
 
         schema = vol.Schema(
             {
                 vol.Required(
                     CONF_BRIDGE_ENTRY_IDS,
-                    default=current.get(CONF_BRIDGE_ENTRY_IDS, []),
+                    default=currently_selected,
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=[
-                            selector.SelectOptionDict(value=eid, label=label)
-                            for eid, label in bridges.items()
-                        ],
+                        options=bridge_options,
                         multiple=True,
                         mode=selector.SelectSelectorMode.LIST,
                     )
                 ),
                 vol.Optional(
-                    CONF_ENABLE_NAMING,
-                    default=current.get(CONF_ENABLE_NAMING, True),
-                ): bool,
+                    CONF_NAMING_BRIDGES,
+                    default=naming_default,
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=bridge_options,
+                        multiple=True,
+                        mode=selector.SelectSelectorMode.LIST,
+                    )
+                ),
                 vol.Optional(
-                    CONF_ENABLE_FILTER,
-                    default=current.get(CONF_ENABLE_FILTER, True),
-                ): bool,
+                    CONF_FILTER_BRIDGES,
+                    default=filter_default,
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=bridge_options,
+                        multiple=True,
+                        mode=selector.SelectSelectorMode.LIST,
+                    )
+                ),
                 vol.Optional(
                     CONF_EXTRA_EXCLUDED_DOMAINS,
                     default=current.get(CONF_EXTRA_EXCLUDED_DOMAINS, []),

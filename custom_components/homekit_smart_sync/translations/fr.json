@@ -23,11 +23,11 @@
     "step": {
       "init": {
         "title": "HomeKit Smart Sync",
-        "description": "Ajustez les ponts gérés et les fonctionnalités actives. Toute modification déclenche un rechargement différé des ponts concernés.",
+        "description": "Choisissez les ponts à gérer et, pour chaque fonctionnalité, le sous-ensemble de ces ponts où elle doit s'appliquer. Les modifications déclenchent un rechargement différé des ponts concernés.",
         "data": {
-          "bridge_entry_ids": "Ponts HomeKit",
-          "enable_naming": "Activer le nettoyage des noms pour Siri",
-          "enable_filter": "Activer le filtre vocal intelligent",
+          "bridge_entry_ids": "Ponts HomeKit gérés",
+          "naming_bridges": "Ponts avec nettoyage Siri",
+          "filter_bridges": "Ponts avec filtre vocal",
           "extra_excluded_domains": "Domaines supplémentaires à exclure"
         }
       }
@@ -36,7 +36,6 @@
   "issues": {
     "ambiguous_link": {
       "title": "Lien {sensor_class} ambigu",
-      "description": "Le capteur {sensor} pourrait appartenir à plusieurs entités contrôlables à la voix sur le même appareil ({candidates}). Choisissez celle qui doit le posséder dans Maison.",
       "fix_flow": {
         "step": {
           "pick_host": {

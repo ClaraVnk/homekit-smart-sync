@@ -23,11 +23,11 @@
     "step": {
       "init": {
         "title": "HomeKit Smart Sync",
-        "description": "Tune which bridges are managed and which features are active. Changes trigger a debounced reload of the affected bridges.",
+        "description": "Pick the bridges to manage and, for each feature, the subset of those bridges where it should run. Changes trigger a debounced reload of the affected bridges.",
         "data": {
-          "bridge_entry_ids": "HomeKit bridges",
-          "enable_naming": "Enable Siri Name Cleaner",
-          "enable_filter": "Enable Smart Filter for voice",
+          "bridge_entry_ids": "Managed HomeKit bridges",
+          "naming_bridges": "Bridges with Siri Name Cleaner",
+          "filter_bridges": "Bridges with Smart Filter for voice",
           "extra_excluded_domains": "Additional domains to exclude"
         }
       }
@@ -36,7 +36,6 @@
   "issues": {
     "ambiguous_link": {
       "title": "Ambiguous {sensor_class} link",
-      "description": "The sensor {sensor} could belong to several voice-actionable entities on the same device ({candidates}). Pick the one that should own it in Apple Home.",
       "fix_flow": {
         "step": {
           "pick_host": {

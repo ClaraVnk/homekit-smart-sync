@@ -9,8 +9,16 @@ HOMEKIT_DOMAIN: Final = "homekit"
 
 # Options keys (persisted in ConfigEntry.options)
 CONF_BRIDGE_ENTRY_IDS: Final = "bridge_entry_ids"
+# Global enable toggles — kept for legacy reads and as defaults in the
+# initial config flow. Per-bridge granularity lives in the *_BRIDGES keys
+# below; if those are present, they win.
 CONF_ENABLE_NAMING: Final = "enable_naming"
 CONF_ENABLE_FILTER: Final = "enable_filter"
+# Subsets of CONF_BRIDGE_ENTRY_IDS where the corresponding feature is on.
+# Allows mixing strategies across multiple HomeKit bridges (e.g. a "prod"
+# bridge with everything, an "experimental" bridge with naming off).
+CONF_NAMING_BRIDGES: Final = "naming_bridges"
+CONF_FILTER_BRIDGES: Final = "filter_bridges"
 CONF_EXTRA_EXCLUDED_DOMAINS: Final = "extra_excluded_domains"
 CONF_ORIGINAL_OPTIONS_SNAPSHOT: Final = "_original_options_snapshot"
 # {device_id: {link_config_key: host_entity_id}} — user choices that resolve
