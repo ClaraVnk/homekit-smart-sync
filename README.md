@@ -12,6 +12,7 @@
   <a href="https://github.com/ClaraVnk/homekit-smart-sync/actions/workflows/validate.yml"><img alt="Validate" src="https://github.com/ClaraVnk/homekit-smart-sync/actions/workflows/validate.yml/badge.svg"></a>
   <a href="https://github.com/ClaraVnk/homekit-smart-sync/actions/workflows/test.yml"><img alt="Tests" src="https://github.com/ClaraVnk/homekit-smart-sync/actions/workflows/test.yml/badge.svg"></a>
   <a href="https://github.com/ClaraVnk/homekit-smart-sync/actions/workflows/lint.yml"><img alt="Lint" src="https://github.com/ClaraVnk/homekit-smart-sync/actions/workflows/lint.yml/badge.svg"></a>
+  <a href="https://codecov.io/gh/ClaraVnk/homekit-smart-sync"><img alt="Codecov" src="https://codecov.io/gh/ClaraVnk/homekit-smart-sync/branch/main/graph/badge.svg"></a>
   <br>
   <a href="https://hacs.xyz/"><img alt="HACS Custom" src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg"></a>
   <a href="https://www.home-assistant.io/"><img alt="Home Assistant" src="https://img.shields.io/badge/Home%20Assistant-2024.6%2B-03a9f4"></a>

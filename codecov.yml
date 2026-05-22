@@ -1,0 +1,39 @@
+# Codecov configuration.
+# Docs: https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        # Coverage may drift by up to 1 percentage point before CI complains —
+        # gives room for honest refactors without making the gate noisy.
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        threshold: 1%
+
+# Track unit and integration tests as separate flags so the Codecov UI shows
+# which surface each line was exercised by. Defaults wire to the CI jobs of
+# the same name in .github/workflows/test.yml.
+flag_management:
+  default_rules:
+    carryforward: true
+  individual_flags:
+    - name: unit
+      paths:
+        - custom_components/homekit_smart_sync/
+    - name: integration
+      paths:
+        - custom_components/homekit_smart_sync/
+
+# Useful comment on PRs without spamming.
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: true
+
+ignore:
+  - "tests/"
+  - "scripts/"
