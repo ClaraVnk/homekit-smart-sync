@@ -33,7 +33,7 @@ from .const import (
     HOMEKIT_DOMAIN,
     SYNC_DEBOUNCE_SECONDS,
 )
-from .filtering import compute_filter, compute_linked_batteries
+from .filtering import compute_filter, compute_linked_sensors
 from .naming import clean_entity_name
 from .registry_resolver import (
     area_name_map,
@@ -126,10 +126,10 @@ class SmartSyncCoordinator:
                 if cleaned:
                     name_overrides[entry.entity_id] = cleaned
 
-        # filter + linked batteries (filter is the user's main exposure control)
+        # filter + linked sensors (filter is the user's main exposure control)
         if self._enable_filter:
             filter_dict = compute_filter(facts, extra_excluded_domains=self._extra_excluded_domains)
-            linked = compute_linked_batteries(facts)
+            linked = compute_linked_sensors(facts)
         else:
             filter_dict = None
             linked = {}
@@ -155,7 +155,7 @@ class SmartSyncCoordinator:
             new_options = self._compose_options(
                 base=base,
                 name_overrides=name_overrides,
-                linked_batteries=linked,
+                linked_sensors=linked,
                 filter_dict=filter_dict,
             )
 
@@ -164,7 +164,7 @@ class SmartSyncCoordinator:
 
             _LOGGER.info(
                 "Pushing updated options to HomeKit bridge %s "
-                "(%d name overrides, %d linked batteries)",
+                "(%d name overrides, %d linked-sensor hosts)",
                 bridge.title or bridge_entry_id,
                 len(name_overrides),
                 len(linked),
@@ -186,7 +186,7 @@ class SmartSyncCoordinator:
         *,
         base: dict[str, Any],
         name_overrides: dict[str, str],
-        linked_batteries: dict[str, str],
+        linked_sensors: dict[str, dict[str, str]],
         filter_dict: dict | None,
     ) -> dict[str, Any]:
         """Layer our overlays on top of the bridge's original options.
@@ -199,15 +199,15 @@ class SmartSyncCoordinator:
         new_options: dict[str, Any] = dict(base)
 
         # entity_config: deep-merge per entity. Don't blow away unrelated
-        # keys the user may have set (e.g. linked_humidity_sensor).
+        # keys the user may have set.
         existing_entity_config = dict(base.get("entity_config", {}))
         for entity_id, alias in name_overrides.items():
             cfg = dict(existing_entity_config.get(entity_id, {}))
             cfg["name"] = alias
             existing_entity_config[entity_id] = cfg
-        for host_entity_id, battery_entity_id in linked_batteries.items():
+        for host_entity_id, link_keys in linked_sensors.items():
             cfg = dict(existing_entity_config.get(host_entity_id, {}))
-            cfg["linked_battery_sensor"] = battery_entity_id
+            cfg.update(link_keys)
             existing_entity_config[host_entity_id] = cfg
         if existing_entity_config:
             new_options["entity_config"] = existing_entity_config

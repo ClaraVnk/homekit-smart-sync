@@ -4,11 +4,12 @@ Produces the ``filter`` and partial ``entity_config`` dicts consumed by
 the ``homekit`` integration. Inputs are plain data (dicts, dataclasses
 of primitive fields) so the module is trivially unit-testable.
 
-Linked-battery awareness: rather than dropping every ``device_class=battery``
-sensor outright, we attempt to attach it to its host device's primary
-voice-actionable entity via ``linked_battery_sensor``. That preserves the
-"Low battery" notification in Apple Home — a real regression if we just
-filtered the sensor out blindly.
+Linked-sensor awareness: rather than dropping helper sensors outright,
+we attempt to attach each one to its host device's primary entity via
+the HomeKit ``linked_*_sensor`` keys. That preserves Apple Home's
+richer accessory tiles — e.g. "Low Battery" notifications on locks
+and humidity/temperature graphs on thermostats — which would otherwise
+disappear if we filtered the sensors away blindly.
 """
 
 from __future__ import annotations
@@ -64,34 +65,69 @@ def compute_filter(
     }
 
 
-def compute_linked_batteries(
-    entities: Iterable[EntityFacts],
-) -> dict[str, str]:
-    """Map host entity_id → battery sensor entity_id, one per device.
+@dataclass(frozen=True, slots=True)
+class _LinkRule:
+    """Recipe for attaching one class of helper sensor to its host.
 
-    Only assigns a linked battery when a device has exactly one
-    voice-actionable host. Ambiguous devices are left untouched — we'd
-    rather under-link than mis-link.
+    Kept private — the public API is :func:`compute_linked_sensors`.
+    Adding a new linked-sensor type is a one-line tuple entry below; the
+    coordinator and entity_config merge logic are rule-agnostic.
+    """
+
+    sensor_device_class: str
+    host_domains: frozenset[str]
+    config_key: str
+
+
+# Order is not significant — each rule applies independently. Battery
+# stays first only for readability (it's the most universally useful).
+_LINK_RULES: tuple[_LinkRule, ...] = (
+    _LinkRule("battery", VOICE_ACTIONABLE_DOMAINS, "linked_battery_sensor"),
+    _LinkRule(
+        "humidity",
+        frozenset({"climate", "humidifier"}),
+        "linked_humidity_sensor",
+    ),
+    # Linking an external temperature sensor to a climate entity overrides
+    # the value Apple Home displays. Worthwhile when the user has a
+    # dedicated room sensor more accurate than the thermostat's own probe.
+    _LinkRule("temperature", frozenset({"climate"}), "linked_temperature_sensor"),
+)
+
+
+def compute_linked_sensors(
+    entities: Iterable[EntityFacts],
+) -> dict[str, dict[str, str]]:
+    """Return host_entity_id → {linked_*_sensor: sensor_entity_id} mappings.
+
+    Each rule in :data:`_LINK_RULES` is applied independently, so a
+    thermostat with both a humidity and a temperature sensor on the same
+    device gets both linked. The same conservative invariant applies as
+    before: a link is only added when the device has exactly one sensor
+    of the relevant class and exactly one eligible host — under-link
+    rather than mis-link.
     """
     entities = list(entities)
+    result: dict[str, dict[str, str]] = {}
 
-    by_device_battery: dict[str, list[str]] = {}
-    by_device_hosts: dict[str, list[str]] = {}
+    for rule in _LINK_RULES:
+        by_device_sensors: dict[str, list[str]] = {}
+        by_device_hosts: dict[str, list[str]] = {}
 
-    for ent in entities:
-        if ent.disabled or ent.hidden or not ent.device_id:
-            continue
-        if ent.domain == "sensor" and ent.device_class == "battery":
-            by_device_battery.setdefault(ent.device_id, []).append(ent.entity_id)
-        elif ent.domain in VOICE_ACTIONABLE_DOMAINS:
-            by_device_hosts.setdefault(ent.device_id, []).append(ent.entity_id)
+        for ent in entities:
+            if ent.disabled or ent.hidden or not ent.device_id:
+                continue
+            if ent.domain == "sensor" and ent.device_class == rule.sensor_device_class:
+                by_device_sensors.setdefault(ent.device_id, []).append(ent.entity_id)
+            elif ent.domain in rule.host_domains:
+                by_device_hosts.setdefault(ent.device_id, []).append(ent.entity_id)
 
-    linked: dict[str, str] = {}
-    for device_id, batteries in by_device_battery.items():
-        hosts = by_device_hosts.get(device_id, [])
-        if len(batteries) == 1 and len(hosts) == 1:
-            linked[hosts[0]] = batteries[0]
-    return linked
+        for device_id, sensors in by_device_sensors.items():
+            hosts = by_device_hosts.get(device_id, [])
+            if len(sensors) == 1 and len(hosts) == 1:
+                result.setdefault(hosts[0], {})[rule.config_key] = sensors[0]
+
+    return result
 
 
 def _should_expose(ent: EntityFacts, extra_excluded_domains: set[str]) -> bool:

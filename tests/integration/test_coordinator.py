@@ -133,6 +133,27 @@ async def test_sync_links_battery_sensor(
     assert entity_config[lock_id]["linked_battery_sensor"] == battery_id
 
 
+async def test_sync_links_humidity_and_temperature_to_climate(
+    hass: HomeAssistant,
+    homekit_bridge: MockConfigEntry,
+    populated_registries: dict,
+) -> None:
+    """A thermostat with sibling humidity + temperature sensors should get
+    both ``linked_humidity_sensor`` and ``linked_temperature_sensor`` set."""
+    entry = await _setup_smart_sync(hass, homekit_bridge)
+    await _run_sync(hass, entry)
+
+    bridge = hass.config_entries.async_get_entry(homekit_bridge.entry_id)
+    entity_config = bridge.options.get("entity_config", {})
+
+    hvac_id = populated_registries["entities"]["hvac"]
+    humidity_id = populated_registries["entities"]["hvac_humidity"]
+    temp_id = populated_registries["entities"]["hvac_temp"]
+
+    assert entity_config[hvac_id]["linked_humidity_sensor"] == humidity_id
+    assert entity_config[hvac_id]["linked_temperature_sensor"] == temp_id
+
+
 # --------------------------------------------------------- idempotency / diff
 
 

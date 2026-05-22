@@ -178,11 +178,11 @@ options pipeline against a real HA runtime
 ## Roadmap
 
 - [x] Integration tests with `pytest-homeassistant-custom-component`
-- [ ] Optional translation of cleaned aliases (multi-language households)
-- [ ] Linked `humidity` / `temperature` sensors for climate entities
-- [ ] Custom rename rules per entity (UI editor)
+- [x] Linked `humidity` / `temperature` sensors for climate entities
 - [ ] Repairs flow for ambiguous battery links
 - [ ] Per-bridge enable/disable in options flow
+- [ ] Custom rename rules per entity (UI editor)
+- [ ] Optional translation of cleaned aliases (multi-language households)
 
 ---
 

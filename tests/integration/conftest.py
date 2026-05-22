@@ -83,6 +83,10 @@ def populated_registries(hass: HomeAssistant, homekit_bridge: MockConfigEntry):
     spot_dev = _mk_device("spot_device", bathroom.id)
     lock_dev = _mk_device("lock_device", living_room.id)
     power_dev = _mk_device("power_device", living_room.id)
+    # A "fully equipped" thermostat: HVAC + its own humidity and temperature
+    # sensors. Exercises the linked_humidity_sensor + linked_temperature_sensor
+    # rules in compute_linked_sensors.
+    hvac_dev = _mk_device("hvac_device", living_room.id)
 
     ceiling = ent_reg.async_get_or_create(
         "light",
@@ -134,6 +138,32 @@ def populated_registries(hass: HomeAssistant, homekit_bridge: MockConfigEntry):
         device_id=power_dev,
         original_device_class="power",
     )
+    hvac = ent_reg.async_get_or_create(
+        "climate",
+        "test",
+        "hvac",
+        suggested_object_id="living_room_thermostat",
+        original_name="Living Room Thermostat",
+        device_id=hvac_dev,
+    )
+    hvac_humidity = ent_reg.async_get_or_create(
+        "sensor",
+        "test",
+        "hvac_humidity",
+        suggested_object_id="living_room_thermostat_humidity",
+        original_name="Living Room Thermostat Humidity",
+        device_id=hvac_dev,
+        original_device_class="humidity",
+    )
+    hvac_temp = ent_reg.async_get_or_create(
+        "sensor",
+        "test",
+        "hvac_temp",
+        suggested_object_id="living_room_thermostat_temperature",
+        original_name="Living Room Thermostat Temperature",
+        device_id=hvac_dev,
+        original_device_class="temperature",
+    )
 
     return {
         "areas": {"living_room": living_room.id, "bathroom": bathroom.id},
@@ -144,5 +174,8 @@ def populated_registries(hass: HomeAssistant, homekit_bridge: MockConfigEntry):
             "lock": lock.entity_id,
             "battery": battery.entity_id,
             "power": power.entity_id,
+            "hvac": hvac.entity_id,
+            "hvac_humidity": hvac_humidity.entity_id,
+            "hvac_temp": hvac_temp.entity_id,
         },
     }
