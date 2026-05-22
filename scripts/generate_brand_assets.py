@@ -1,6 +1,6 @@
 """Generate brand assets for HACS (icon.png 256x256, logo.png 512x256).
 
-House silhouette + three signal dots = "smart home that stays in sync".
+House silhouette + circular sync arrow = "smart home that stays in sync".
 Background is a vertical HA-blue gradient so the asset feels at home next
 to the rest of the Home Assistant integration directory.
 
@@ -11,6 +11,7 @@ Re-run after editing:
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -77,17 +78,59 @@ def gradient_rounded_square(
     return out
 
 
+def draw_sync_glyph(
+    draw: ImageDraw.ImageDraw,
+    cx: float,
+    cy: float,
+    radius: float,
+    color: tuple[int, int, int, int],
+    stroke: int,
+) -> None:
+    """Draw the universal sync symbol (clockwise circular arrow ↻).
+
+    Renders as a ~290° arc with a triangular arrowhead at the tip. PIL
+    angle convention: 0° = 3 o'clock, increasing clockwise. We open the
+    circle at the top-right so the arrow head sits visibly outside the
+    body of the house below.
+    """
+    start_deg, end_deg = 50, 340  # ~290° sweep, open at top-right
+    bbox = (cx - radius, cy - radius, cx + radius, cy + radius)
+    draw.arc(bbox, start=start_deg, end=end_deg, fill=color, width=stroke)
+
+    # Arrowhead at the arc's terminal point (angle = end_deg).
+    end_rad = math.radians(end_deg)
+    tip_x = cx + radius * math.cos(end_rad)
+    tip_y = cy + radius * math.sin(end_rad)
+    # Clockwise tangent vector — derivative of (cos θ, sin θ) wrt θ
+    # increasing (which is the clockwise direction in PIL screen coords).
+    tan_x = -math.sin(end_rad)
+    tan_y = math.cos(end_rad)
+    # Radial vector (outward), used to fan the arrowhead's base wings.
+    rad_x = math.cos(end_rad)
+    rad_y = math.sin(end_rad)
+
+    head_len = stroke * 1.6
+    head_half = stroke * 1.1
+    tip = (tip_x + tan_x * head_len, tip_y + tan_y * head_len)
+    base_outer = (
+        tip_x - tan_x * head_len * 0.2 + rad_x * head_half,
+        tip_y - tan_y * head_len * 0.2 + rad_y * head_half,
+    )
+    base_inner = (
+        tip_x - tan_x * head_len * 0.2 - rad_x * head_half,
+        tip_y - tan_y * head_len * 0.2 - rad_y * head_half,
+    )
+    draw.polygon([tip, base_outer, base_inner], fill=color)
+
+
 def make_icon() -> Image.Image:
     size = 256
     img = gradient_rounded_square(size, BG_TOP, BG_BOTTOM, radius=48)
     draw = ImageDraw.Draw(img)
 
-    # Three signal dots above the roof — read as "broadcasting / in sync".
-    # Slight vertical stagger gives a touch of dynamism without being noisy.
-    dots = [(-22, 56), (0, 50), (22, 56)]
-    for dx, dy in dots:
-        cx, cy, r = 128 + dx, dy, 5
-        draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=FG)
+    # Universal sync arrow above the roof — the integration's whole job
+    # is "keep things in sync", so the symbol earns its space.
+    draw_sync_glyph(draw, cx=128, cy=48, radius=22, color=FG, stroke=6)
 
     # House body — rounded bottom corners only would be ideal but PIL only
     # offers all-corners rounded rectangles. Slight rounding everywhere

@@ -222,6 +222,10 @@ pytest tests/integration/ -v
 pip install ruff
 ruff check .
 ruff format --check .
+
+# Pre-commit hook (runs ruff check + format automatically on every commit)
+pip install pre-commit
+pre-commit install
 ```
 
 The CI on every push/PR runs hassfest, HACS validation, ruff, and pytest on
