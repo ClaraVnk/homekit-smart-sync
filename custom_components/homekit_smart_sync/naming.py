@@ -55,6 +55,53 @@ def clean_entity_name(friendly_name: str | None, area_name: str | None) -> str |
     return cleaned
 
 
+def translate_alias(alias: str | None, translations: dict[str, str]) -> str | None:
+    """Substitute terms in an alias using a longest-match dictionary.
+
+    ``translations`` is ``{phrase_lowercase: replacement}``. The function
+    walks ``alias`` left-to-right and at each position tries the longest
+    matching phrase (in tokens) before falling back to the single token.
+    Match is case-insensitive on the input; the replacement is inserted
+    verbatim, preserving whatever casing the dictionary author chose.
+
+    Returns ``None`` when no substitution applied — same convention as
+    :func:`clean_entity_name`, so the coordinator can skip pushing an
+    identity override to the bridge.
+    """
+    if not alias or not translations:
+        return None
+    tokens = alias.split()
+    if not tokens:
+        return None
+
+    out: list[str] = []
+    i = 0
+    changed = False
+    while i < len(tokens):
+        # Greedy longest-match — important so a 2-token phrase like
+        # "ceiling light" wins over the 1-token "ceiling".
+        match: str | None = None
+        match_len = 0
+        for length in range(len(tokens) - i, 0, -1):
+            phrase = " ".join(tokens[i : i + length]).casefold()
+            if phrase in translations:
+                match = translations[phrase]
+                match_len = length
+                break
+        if match is not None:
+            out.append(match)
+            i += match_len
+            changed = True
+        else:
+            out.append(tokens[i])
+            i += 1
+
+    if not changed:
+        return None
+    translated = " ".join(out)
+    return translated or None
+
+
 def _normalize(token: str) -> str:
     """Lowercase + strip accents for comparison only."""
     nfd = unicodedata.normalize("NFD", token)

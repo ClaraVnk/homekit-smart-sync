@@ -57,6 +57,30 @@
           "description": "Entity whose manual alias should be removed."
         }
       }
+    },
+    "set_translation": {
+      "name": "Set term translation",
+      "description": "Register a term substitution applied to every auto-cleaned alias. Multi-word phrases are matched longest-first.",
+      "fields": {
+        "term": {
+          "name": "Source term",
+          "description": "Phrase to match (case-insensitive, 1–64 characters)."
+        },
+        "translation": {
+          "name": "Replacement",
+          "description": "Word or phrase to substitute in (1–64 characters)."
+        }
+      }
+    },
+    "clear_translation": {
+      "name": "Clear term translation",
+      "description": "Remove a previously registered term substitution.",
+      "fields": {
+        "term": {
+          "name": "Source term",
+          "description": "Phrase whose substitution should be removed."
+        }
+      }
     }
   },
   "issues": {

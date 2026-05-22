@@ -57,6 +57,30 @@
           "description": "Entité dont l'alias personnalisé doit être supprimé."
         }
       }
+    },
+    "set_translation": {
+      "name": "Définir une traduction de terme",
+      "description": "Enregistre une substitution de terme appliquée à tous les alias auto-nettoyés. Les phrases multi-mots sont d'abord testées dans leur version la plus longue.",
+      "fields": {
+        "term": {
+          "name": "Terme source",
+          "description": "Phrase à rechercher (insensible à la casse, 1 à 64 caractères)."
+        },
+        "translation": {
+          "name": "Remplacement",
+          "description": "Mot ou phrase de substitution (1 à 64 caractères)."
+        }
+      }
+    },
+    "clear_translation": {
+      "name": "Supprimer une traduction de terme",
+      "description": "Supprime une substitution de terme précédemment enregistrée.",
+      "fields": {
+        "term": {
+          "name": "Terme source",
+          "description": "Phrase dont la substitution doit être supprimée."
+        }
+      }
     }
   },
   "issues": {

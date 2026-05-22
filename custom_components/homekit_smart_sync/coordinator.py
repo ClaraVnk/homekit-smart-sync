@@ -35,6 +35,7 @@ from .const import (
     CONF_MANUAL_NAMES,
     CONF_NAMING_BRIDGES,
     CONF_ORIGINAL_OPTIONS_SNAPSHOT,
+    CONF_TERM_TRANSLATIONS,
     DOMAIN,
     HOMEKIT_DOMAIN,
     SYNC_DEBOUNCE_SECONDS,
@@ -45,7 +46,7 @@ from .filtering import (
     compute_link_ambiguities,
     compute_linked_sensors,
 )
-from .naming import clean_entity_name
+from .naming import clean_entity_name, translate_alias
 from .registry_resolver import (
     area_name_map,
     collect_entity_facts,
@@ -72,6 +73,7 @@ class SmartSyncCoordinator:
         self._extra_excluded_domains: list[str] = []
         self._manual_links: dict[str, dict[str, str]] = {}
         self._manual_names: dict[str, str] = {}
+        self._term_translations: dict[str, str] = {}
         self._debouncer: Debouncer | None = None
         # Issue IDs we have raised this session — used to clean up issues
         # that no longer apply (ambiguity resolved or device removed).
@@ -120,6 +122,16 @@ class SmartSyncCoordinator:
             }
         else:
             self._manual_names = {}
+
+        raw_terms = opts.get(CONF_TERM_TRANSLATIONS, {})
+        if isinstance(raw_terms, dict):
+            self._term_translations = {
+                str(term).casefold(): str(replacement)
+                for term, replacement in raw_terms.items()
+                if isinstance(replacement, str) and replacement
+            }
+        else:
+            self._term_translations = {}
 
     # ------------------------------------------------------------------ events
 
@@ -174,9 +186,13 @@ class SmartSyncCoordinator:
                 friendly = entity_friendly_name(entry, self._hass)
                 cleaned = clean_entity_name(friendly, areas.get(area_id))
                 if cleaned:
-                    name_overrides[entry.entity_id] = cleaned
-            # Manual aliases override the auto-cleaned ones and apply even
-            # to entities without an area (which the auto-cleaner skips).
+                    # Apply term substitution if the user has configured any.
+                    # ``translate_alias`` returns None when nothing matched,
+                    # in which case we keep the cleaned form as-is.
+                    translated = translate_alias(cleaned, self._term_translations)
+                    name_overrides[entry.entity_id] = translated or cleaned
+            # Manual aliases override both auto-cleaning and translation, and
+            # apply even to entities without an area.
             for entity_id, alias in self._manual_names.items():
                 name_overrides[entity_id] = alias
 
@@ -373,6 +389,25 @@ class SmartSyncCoordinator:
         self._hass.config_entries.async_update_entry(
             self._entry,
             options={**self._entry.options, CONF_MANUAL_NAMES: existing},
+        )
+
+    def record_term_translation(self, term: str, translation: str) -> None:
+        """Persist a phrase substitution applied to all auto-cleaned aliases."""
+        existing = dict(self._entry.options.get(CONF_TERM_TRANSLATIONS, {}))
+        existing[term.casefold()] = translation
+        self._hass.config_entries.async_update_entry(
+            self._entry,
+            options={**self._entry.options, CONF_TERM_TRANSLATIONS: existing},
+        )
+
+    def clear_term_translation(self, term: str) -> None:
+        """Drop a term substitution."""
+        existing = dict(self._entry.options.get(CONF_TERM_TRANSLATIONS, {}))
+        if existing.pop(term.casefold(), None) is None:
+            return
+        self._hass.config_entries.async_update_entry(
+            self._entry,
+            options={**self._entry.options, CONF_TERM_TRANSLATIONS: existing},
         )
 
     # ----------------------------------------------------------------- restore

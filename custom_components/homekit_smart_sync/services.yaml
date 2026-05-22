@@ -31,3 +31,38 @@ clear_alias:
       required: true
       selector:
         entity: {}
+
+set_translation:
+  name: Set term translation
+  description: >-
+    Register a term substitution applied to every auto-cleaned alias.
+    Use this when entity friendly names are in English but the household
+    speaks something else — for example, map "ceiling light" to
+    "plafonnier". Multi-word phrases are matched longest-first, so
+    "ceiling light" wins over "ceiling".
+  fields:
+    term:
+      name: Source term
+      description: Phrase to match (case-insensitive, 1–64 characters).
+      required: true
+      example: ceiling light
+      selector:
+        text: {}
+    translation:
+      name: Replacement
+      description: Word or phrase to substitute in (1–64 characters).
+      required: true
+      example: plafonnier
+      selector:
+        text: {}
+
+clear_translation:
+  name: Clear term translation
+  description: Remove a previously registered term substitution.
+  fields:
+    term:
+      name: Source term
+      description: Phrase whose substitution should be removed.
+      required: true
+      selector:
+        text: {}

@@ -22,9 +22,13 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import (
     ATTR_ALIAS,
+    ATTR_TERM,
+    ATTR_TRANSLATION,
     DOMAIN,
     SERVICE_CLEAR_ALIAS,
+    SERVICE_CLEAR_TRANSLATION,
     SERVICE_SET_ALIAS,
+    SERVICE_SET_TRANSLATION,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,6 +41,17 @@ SET_ALIAS_SCHEMA = vol.Schema(
 )
 
 CLEAR_ALIAS_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.entity_id})
+
+SET_TRANSLATION_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_TERM): vol.All(cv.string, vol.Length(min=1, max=64)),
+        vol.Required(ATTR_TRANSLATION): vol.All(cv.string, vol.Length(min=1, max=64)),
+    }
+)
+
+CLEAR_TRANSLATION_SCHEMA = vol.Schema(
+    {vol.Required(ATTR_TERM): vol.All(cv.string, vol.Length(min=1, max=64))}
+)
 
 
 @callback
@@ -61,16 +76,49 @@ def async_register_services(hass: HomeAssistant) -> None:
             return
         coordinator.clear_manual_name(call.data[ATTR_ENTITY_ID])
 
+    async def _set_translation(call: ServiceCall) -> None:
+        coordinator = _resolve_coordinator(hass)
+        if coordinator is None:
+            _LOGGER.warning("Cannot set translation: HomeKit Smart Sync is not configured yet")
+            return
+        coordinator.record_term_translation(
+            term=call.data[ATTR_TERM],
+            translation=call.data[ATTR_TRANSLATION],
+        )
+
+    async def _clear_translation(call: ServiceCall) -> None:
+        coordinator = _resolve_coordinator(hass)
+        if coordinator is None:
+            return
+        coordinator.clear_term_translation(call.data[ATTR_TERM])
+
     hass.services.async_register(DOMAIN, SERVICE_SET_ALIAS, _set_alias, schema=SET_ALIAS_SCHEMA)
     hass.services.async_register(
         DOMAIN, SERVICE_CLEAR_ALIAS, _clear_alias, schema=CLEAR_ALIAS_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_TRANSLATION,
+        _set_translation,
+        schema=SET_TRANSLATION_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CLEAR_TRANSLATION,
+        _clear_translation,
+        schema=CLEAR_TRANSLATION_SCHEMA,
     )
 
 
 @callback
 def async_unregister_services(hass: HomeAssistant) -> None:
     """Remove the services. Called from async_unload_entry."""
-    for service in (SERVICE_SET_ALIAS, SERVICE_CLEAR_ALIAS):
+    for service in (
+        SERVICE_SET_ALIAS,
+        SERVICE_CLEAR_ALIAS,
+        SERVICE_SET_TRANSLATION,
+        SERVICE_CLEAR_TRANSLATION,
+    ):
         if hass.services.has_service(DOMAIN, service):
             hass.services.async_remove(DOMAIN, service)
 

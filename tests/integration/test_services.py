@@ -10,11 +10,16 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.homekit_smart_sync.const import (
     ATTR_ALIAS,
+    ATTR_TERM,
+    ATTR_TRANSLATION,
     CONF_BRIDGE_ENTRY_IDS,
     CONF_MANUAL_NAMES,
+    CONF_TERM_TRANSLATIONS,
     DOMAIN,
     SERVICE_CLEAR_ALIAS,
+    SERVICE_CLEAR_TRANSLATION,
     SERVICE_SET_ALIAS,
+    SERVICE_SET_TRANSLATION,
 )
 
 
@@ -114,5 +119,107 @@ async def test_services_unregistered_on_unload(
     with patch.object(hass.config_entries, "async_reload", new=AsyncMock(return_value=True)):
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
-    assert not hass.services.has_service(DOMAIN, SERVICE_SET_ALIAS)
-    assert not hass.services.has_service(DOMAIN, SERVICE_CLEAR_ALIAS)
+    for service in (
+        SERVICE_SET_ALIAS,
+        SERVICE_CLEAR_ALIAS,
+        SERVICE_SET_TRANSLATION,
+        SERVICE_CLEAR_TRANSLATION,
+    ):
+        assert not hass.services.has_service(DOMAIN, service)
+
+
+async def test_set_translation_applies_to_cleaned_aliases(
+    hass: HomeAssistant,
+    homekit_bridge: MockConfigEntry,
+    populated_registries: dict,
+) -> None:
+    """Once a term substitution is registered, the auto-cleaner's output is
+    rewritten before being pushed to the bridge."""
+    entry = await _setup(hass, homekit_bridge)
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_SET_TRANSLATION,
+        {ATTR_TERM: "ceiling light", ATTR_TRANSLATION: "Plafonnier"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    # Persisted (lowercase key for case-insensitive matching).
+    entry = hass.config_entries.async_get_entry(entry.entry_id)
+    assert entry.options[CONF_TERM_TRANSLATIONS]["ceiling light"] == "Plafonnier"
+
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    with patch.object(hass.config_entries, "async_reload", new=AsyncMock(return_value=True)):
+        await coordinator._async_perform_sync()
+        await hass.async_block_till_done()
+
+    bridge = hass.config_entries.async_get_entry(homekit_bridge.entry_id)
+    ceiling_id = populated_registries["entities"]["ceiling"]
+    # Auto-cleaner produced "Ceiling Light", translator replaced it.
+    assert bridge.options["entity_config"][ceiling_id]["name"] == "Plafonnier"
+
+
+async def test_set_alias_wins_over_translation(
+    hass: HomeAssistant,
+    homekit_bridge: MockConfigEntry,
+    populated_registries: dict,
+) -> None:
+    """Manual aliases must beat term substitution — they're the most specific
+    user intent and the per-entity override is the documented escape hatch."""
+    entry = await _setup(hass, homekit_bridge)
+    ceiling_id = populated_registries["entities"]["ceiling"]
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_SET_TRANSLATION,
+        {ATTR_TERM: "ceiling light", ATTR_TRANSLATION: "Plafonnier"},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_SET_ALIAS,
+        {"entity_id": ceiling_id, ATTR_ALIAS: "Lustre"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    with patch.object(hass.config_entries, "async_reload", new=AsyncMock(return_value=True)):
+        await coordinator._async_perform_sync()
+        await hass.async_block_till_done()
+
+    bridge = hass.config_entries.async_get_entry(homekit_bridge.entry_id)
+    assert bridge.options["entity_config"][ceiling_id]["name"] == "Lustre"
+
+
+async def test_clear_translation_restores_cleaned_alias(
+    hass: HomeAssistant,
+    homekit_bridge: MockConfigEntry,
+    populated_registries: dict,
+) -> None:
+    entry = await _setup(hass, homekit_bridge)
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_SET_TRANSLATION,
+        {ATTR_TERM: "ceiling light", ATTR_TRANSLATION: "Plafonnier"},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_CLEAR_TRANSLATION,
+        {ATTR_TERM: "Ceiling Light"},  # casing should not matter on removal
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    entry = hass.config_entries.async_get_entry(entry.entry_id)
+    assert "ceiling light" not in entry.options.get(CONF_TERM_TRANSLATIONS, {})
+
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    with patch.object(hass.config_entries, "async_reload", new=AsyncMock(return_value=True)):
+        await coordinator._async_perform_sync()
+        await hass.async_block_till_done()
+
+    bridge = hass.config_entries.async_get_entry(homekit_bridge.entry_id)
+    ceiling_id = populated_registries["entities"]["ceiling"]
+    assert bridge.options["entity_config"][ceiling_id]["name"] == "Ceiling Light"

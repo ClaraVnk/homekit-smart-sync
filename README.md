@@ -127,6 +127,19 @@ Two toggles you'll see:
 After setup, use **Configure** on the integration card to add extra excluded
 domains or change which bridges are managed.
 
+### Per-entity overrides via services
+
+Four services let you fine-tune individual aliases without touching the UI:
+
+| Service | What it does |
+|---|---|
+| `homekit_smart_sync.set_alias` | Force a specific HomeKit name for one entity (wins over auto-cleaning and translation). |
+| `homekit_smart_sync.clear_alias` | Drop a manual alias, letting the auto-cleaner resume. |
+| `homekit_smart_sync.set_translation` | Register a word/phrase substitution applied to every auto-cleaned alias (longest-match, case-insensitive). |
+| `homekit_smart_sync.clear_translation` | Remove a previously registered substitution. |
+
+Naming pipeline order, from least to most specific: **auto-clean → translate → manual alias**.
+
 ---
 
 ## ⚠️ Heads-up: the "Not Responding" flash
@@ -179,10 +192,10 @@ options pipeline against a real HA runtime
 
 - [x] Integration tests with `pytest-homeassistant-custom-component`
 - [x] Linked `humidity` / `temperature` sensors for climate entities
-- [ ] Repairs flow for ambiguous battery links
-- [ ] Per-bridge enable/disable in options flow
-- [ ] Custom rename rules per entity (UI editor)
-- [ ] Optional translation of cleaned aliases (multi-language households)
+- [x] Repairs flow for ambiguous battery links
+- [x] Per-bridge enable/disable in options flow
+- [x] Custom rename rules per entity (`homekit_smart_sync.set_alias` service)
+- [x] Optional translation of cleaned aliases (`homekit_smart_sync.set_translation` service)
 
 ---
 

@@ -61,6 +61,41 @@ class TestNoOp:
         assert naming.clean_entity_name("Kitchens Lamp", "Kitchen") is None
 
 
+class TestTranslateAlias:
+    def test_no_translations_returns_none(self, naming):
+        # Identity overrides are noise — return None so the coordinator
+        # doesn't bloat entity_config with them.
+        assert naming.translate_alias("Ceiling Light", {}) is None
+
+    def test_none_input(self, naming):
+        assert naming.translate_alias(None, {"x": "y"}) is None
+
+    def test_single_word_substitution(self, naming):
+        assert naming.translate_alias("Lamp", {"lamp": "lampe"}) == "lampe"
+
+    def test_multi_word_phrase_wins_over_single(self, naming):
+        # "ceiling light" must beat "ceiling" alone — that's the whole point
+        # of the longest-match algorithm.
+        assert (
+            naming.translate_alias(
+                "Ceiling Light",
+                {"ceiling": "plafond", "ceiling light": "plafonnier"},
+            )
+            == "plafonnier"
+        )
+
+    def test_unmatched_tokens_pass_through(self, naming):
+        assert naming.translate_alias("Living Room Lamp", {"lamp": "lampe"}) == "Living Room lampe"
+
+    def test_case_insensitive_match(self, naming):
+        assert naming.translate_alias("LAMP", {"lamp": "lampe"}) == "lampe"
+
+    def test_no_match_returns_none(self, naming):
+        # When nothing changes the function reports None — same convention
+        # as clean_entity_name.
+        assert naming.translate_alias("Spotlight", {"lamp": "lampe"}) is None
+
+
 class TestIdempotency:
     """Critical: re-running the cleaner on its own output must not change it.
 

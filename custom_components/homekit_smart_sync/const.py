@@ -29,10 +29,19 @@ CONF_MANUAL_LINKS: Final = "manual_links"
 # alias produced by ``naming.clean_entity_name``. Managed through the
 # homekit_smart_sync.set_alias / clear_alias services.
 CONF_MANUAL_NAMES: Final = "manual_names"
+# {english_phrase_lowercase: translation} — applied to cleaned aliases as
+# a longest-match word substitution. Useful when HA entity names are in
+# English but the household speaks something else, and the per-entity
+# ``manual_names`` would be too repetitive to maintain.
+CONF_TERM_TRANSLATIONS: Final = "term_translations"
 
 SERVICE_SET_ALIAS: Final = "set_alias"
 SERVICE_CLEAR_ALIAS: Final = "clear_alias"
+SERVICE_SET_TRANSLATION: Final = "set_translation"
+SERVICE_CLEAR_TRANSLATION: Final = "clear_translation"
 ATTR_ALIAS: Final = "alias"
+ATTR_TERM: Final = "term"
+ATTR_TRANSLATION: Final = "translation"
 
 # Debounce window before pushing options into the HomeKit bridge.
 # Long enough to coalesce a startup burst of registry events,
